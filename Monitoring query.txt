@@ -1,0 +1,24 @@
+// View all datasets with their monitoring status
+config timeframe = 1h
+| dataset = custom.data_source_health
+| join type=right (
+    dataset = custom.datasource_monitoring_config
+    | filter active = true
+    | fields pattern, reason, config_type
+) as config on dataset_name = config.pattern
+| alter 
+    monitoring_status = case(
+        config.pattern != null, "Excluded",
+        status = "Silent", "Alert",
+        status = "Delayed", "Warning",
+        else, "OK"
+    )
+| stats 
+    count() as total,
+    countif(monitoring_status = "Excluded") as excluded,
+    countif(monitoring_status = "Alert") as alerts,
+    countif(monitoring_status = "Warning") as warnings,
+    countif(monitoring_status = "OK") as healthy
+| alter 
+    monitored_datasets = total - excluded,
+    health_percentage = round((healthy / (total - excluded)) * 100, 1)

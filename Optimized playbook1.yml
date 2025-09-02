@@ -1,0 +1,378 @@
+id: monitor-silent-data-sources-optimized
+version: 2
+name: Monitor Silent Data Sources (Optimized)
+description: |
+  Monitors data sources using a custom dataset for efficient CU usage.
+  Creates low severity health domain incidents for silent data sources.
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: start
+    type: start
+    task:
+      id: start
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 50
+        }
+      }
+
+  "1":
+    id: "1"
+    taskid: check-health-dataset
+    type: regular
+    task:
+      id: check-health-dataset
+      version: -1
+      name: Check Data Source Health Dataset
+      description: Reads from custom dataset (low CU usage)
+      script: CheckDataSourceHealthDataset
+      type: regular
+      iscommand: true
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "11"
+    scriptarguments:
+      threshold_hours:
+        simple: "1"
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 200
+        }
+      }
+    results:
+    - SilentDataSources
+    - DatasetFreshness
+
+  "11":
+    id: "11"
+    taskid: get-health-trends
+    type: regular
+    task:
+      id: get-health-trends
+      version: -1
+      name: Get Health Trends
+      description: Analyze trends from health dataset
+      script: GetDataSourceHealthTrends
+      type: regular
+      iscommand: true
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "2"
+    scriptarguments:
+      timeframe_hours:
+        simple: "24"
+    continueOnError: true
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 350
+        }
+      }
+    results:
+    - HealthTrends
+
+  "2":
+    id: "2"
+    taskid: check-if-silent-sources-found
+    type: condition
+    task:
+      id: check-if-silent-sources-found
+      version: -1
+      name: Any Silent Data Sources Found?
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "8"
+      "yes":
+      - "3"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: SilentDataSources
+            iscontext: true
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 500
+        }
+      }
+
+  "3":
+    id: "3"
+    taskid: check-existing-incident
+    type: regular
+    task:
+      id: check-existing-incident
+      version: -1
+      name: Check for Existing Health Incident
+      script: CheckExistingHealthIncident
+      type: regular
+      iscommand: true
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "4"
+    scriptarguments:
+      incident_type:
+        simple: "Data Source Health Alert"
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 650
+        }
+      }
+    results:
+    - ExistingIncident
+    - ShouldCreateNew
+
+  "4":
+    id: "4"
+    taskid: should-create-new-incident
+    type: condition
+    task:
+      id: should-create-new-incident
+      version: -1
+      name: Should Create New Incident?
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "9"
+      "yes":
+      - "5"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isTrue
+          left:
+            value:
+              simple: ShouldCreateNew
+            iscontext: true
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 800
+        }
+      }
+
+  "5":
+    id: "5"
+    taskid: generate-incident-content
+    type: regular
+    task:
+      id: generate-incident-content
+      version: -1
+      name: Generate Health Incident Content
+      script: GenerateHealthIncidentContent
+      type: regular
+      iscommand: true
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "6"
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 950
+        }
+      }
+    results:
+    - IncidentContent
+    - CreateIncident
+
+  "6":
+    id: "6"
+    taskid: create-health-incident
+    type: regular
+    task:
+      id: create-health-incident
+      version: -1
+      name: Create Health Domain Incident
+      script: '|||createNewIncident'
+      type: regular
+      iscommand: true
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "7"
+    scriptarguments:
+      name:
+        simple: ${IncidentContent.name}
+      type:
+        simple: ${IncidentContent.type}
+      severity:
+        simple: ${IncidentContent.severity}
+      details:
+        simple: ${IncidentContent.details}
+      occurred:
+        simple: ${IncidentContent.occurred}
+      rawJSON:
+        simple: ${IncidentContent.rawJSON}
+      labels:
+        simple: ${IncidentContent.labels}
+      customFields:
+        simple: ${IncidentContent.customFields}
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 1100
+        }
+      }
+
+  "7":
+    id: "7"
+    taskid: close-task-success
+    type: regular
+    task:
+      id: close-task-success
+      version: -1
+      name: Close - Health Incident Created
+      script: '|||closeInvestigation'
+      type: regular
+      iscommand: true
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "10"
+    scriptarguments:
+      notes:
+        simple: "Health incident created for silent data sources"
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 1250
+        }
+      }
+
+  "8":
+    id: "8"
+    taskid: close-no-issues
+    type: regular
+    task:
+      id: close-no-issues
+      version: -1
+      name: Close - No Issues Found
+      script: '|||closeInvestigation'
+      type: regular
+      iscommand: true
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "10"
+    scriptarguments:
+      notes:
+        simple: "All data sources are reporting normally"
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 150,
+          "y": 1250
+        }
+      }
+
+  "9":
+    id: "9"
+    taskid: update-existing-incident
+    type: regular
+    task:
+      id: update-existing-incident
+      version: -1
+      name: Update Existing Incident
+      script: '|||setIncident'
+      type: regular
+      iscommand: true
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "10"
+    scriptarguments:
+      id:
+        simple: ${ExistingIncident.id}
+      customFields:
+        simple: |
+          {
+            "xsiamlastupdated": "${.CurrentTime}",
+            "xsiamtotalsilentdatasources": "${SilentDataSources.[].dataset | length}",
+            "xsiamhealthtrends": "${HealthTrends}"
+          }
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 750,
+          "y": 1100
+        }
+      }
+
+  "10":
+    id: "10"
+    taskid: end
+    type: title
+    task:
+      id: end
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    view: |-
+      {
+        "position": {
+          "x": 450,
+          "y": 1400
+        }
+      }
+
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 1445,
+        "width": 980,
+        "x": 150,
+        "y": 50
+      }
+    }
+  }
+inputs: []
+outputs: []

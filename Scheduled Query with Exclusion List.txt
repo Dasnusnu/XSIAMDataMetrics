@@ -1,0 +1,94 @@
+// Scheduled Query Name: DataSource_Health_Status
+// Output Dataset: custom.data_source_health
+// Description: Monitors all datasets except those in the exclusion list
+
+config timeframe = 70m
+// Get all datasets with their metrics
+| dataset in (*)  // This captures ALL datasets
+| comp max(_time) as last_event_time, count() as event_count by _dataset
+
+// Define exclusion list (modify this list as needed)
+| filter _dataset not in (
+    // === EXCLUSION LIST START ===
+    // System and internal datasets
+    "xdr_data.audits",
+    "xdr_data.system_logs",
+    "system.compute_units_usage",
+    "system.dataset_statistics",
+    
+    // Development datasets
+    "qv.*",
+    "dev.*",
+    "sb.*",
+    
+    // Deprecated or unused datasets
+    "legacy.*",
+    "old",
+    
+    // Low-priority datasets
+    "xdr_data.performance_metrics",
+    "panw.dns_logs",
+    
+    // Custom exclusions (add your datasets here)
+    "custom.temp_data",
+    "aws.cloudwatch_metrics"
+    // === EXCLUSION LIST END ===
+)
+
+// Filter out datasets matching exclusion patterns
+| filter _dataset !~= "qv\..*" 
+  and _dataset !~= "dev\..*"
+  and _dataset !~= "sb\..*"
+  and _dataset !~= "legacy\..*"
+  and _dataset !~= ".*_temp$"
+  and _dataset !~= ".*_test$"
+  and _dataset !~= ".*_backup$"
+
+// Calculate health metrics
+| alter 
+    check_time = current_time(),
+    hours_silent = round((current_time() - last_event_time) / 3600, 2),
+    minutes_silent = round((current_time() - last_event_time) / 60, 0),
+    days_silent = round((current_time() - last_event_time) / 86400, 2),
+    severity = case(
+        (current_time() - last_event_time) >= 86400, "Critical",    // 24+ hours
+        (current_time() - last_event_time) >= 14400, "High",        // 4+ hours
+        (current_time() - last_event_time) >= 3600, "Medium",       // 1+ hours
+        (current_time() - last_event_time) >= 1800, "Low",          // 30+ minutes
+        else, "Info"
+    ),
+    status = case(
+        (current_time() - last_event_time) >= 3600, "Silent",
+        (current_time() - last_event_time) >= 1800, "Delayed",
+        else, "Active"
+    ),
+    // Add dataset categorization
+    dataset_type = case(
+        _dataset ~= "xdr_data\..*", "XDR",
+        _dataset ~= "panw\..*", "Palo Alto",
+        _dataset ~= "msft\..*", "Microsoft",
+        _dataset ~= "aws\..*", "AWS",
+        _dataset ~= "gcp\..*", "GCP",
+        _dataset ~= "azure\..*", "Azure",
+        _dataset ~= "custom\..*", "Custom",
+        else, "Other"
+    )
+
+// Project final fields for the custom dataset
+| project 
+    dataset_name = _dataset,
+    dataset_type,
+    last_seen_time = last_event_time,
+    hours_silent,
+    minutes_silent,
+    days_silent,
+    check_time,
+    severity,
+    event_count_last_hour = event_count,
+    status,
+    last_seen_human = strftime("%Y-%m-%d %H:%M:%S", last_event_time),
+    is_critical = if(severity = "Critical", 1, 0),
+    requires_action = if(hours_silent >= 1, 1, 0)
+
+// Output to custom dataset (overwrites previous data)
+| output dataset = custom.data_source_health mode = overwrite

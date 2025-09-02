@@ -1,0 +1,11 @@
+# Dataset Name: custom.data_source_health
+# Schema:
+{
+  "dataset_name": "string",
+  "last_seen_time": "timestamp",
+  "hours_silent": "float",
+  "check_time": "timestamp",
+  "severity": "string",
+  "event_count_last_hour": "integer",
+  "status": "string"
+}
