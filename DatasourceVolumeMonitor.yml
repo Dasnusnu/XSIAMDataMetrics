@@ -1,6 +1,6 @@
 id: monitor-silent-data-sources-optimized
 version: 2
-name: Monitor Silent Data Sources (Optimized)
+name: Monitor Silent Data Sources 
 description: |
   Monitors data sources using a custom dataset for efficient CU usage.
   Creates low severity health domain incidents for silent data sources.
